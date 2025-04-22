@@ -34,12 +34,16 @@ jobs:
     - name: Run main script
       run: python main.py
 
+    - name: Download EPG File (新增步骤)
+      run: wget http://epg.51zmt.top:8000/e.xml -O epg.xml
+      # 从指定 URL 下载 EPG 文件并保存为 epg.xml（需确保 URL 有效）
+
     - name: Configure Git user
       run: |
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
 
-    - name: Add changed files (根目录下的生成文件)
+    - name: Add changed files (包含 epg.xml)
       run: git add live_ipv4.m3u live_ipv6.m3u live_ipv4.txt live_ipv6.txt epg.xml
 
     - name: Commit and push if changes exist
@@ -47,7 +51,7 @@ jobs:
         if git diff --staged --exit-code; then
           echo "No changes to commit"
         else
-          git commit -m "Update live streams"
+          git commit -m "Update live streams and EPG"
           git push
         fi
     env:
