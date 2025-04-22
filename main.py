@@ -4,7 +4,8 @@ import logging
 from collections import OrderedDict
 from datetime import datetime
 import config
-import os  # 新增文件操作模块
+import os
+from concurrent.futures import ThreadPoolExecutor
 
 # 日志配置
 logging.basicConfig(
@@ -16,12 +17,10 @@ logging.basicConfig(
     ]
 )
 
-
 def parse_template(template_file):
     """解析模板文件，提取频道分类和名称"""
     template_channels = OrderedDict()
     current_category = None
-
     with open(template_file, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -30,10 +29,9 @@ def parse_template(template_file):
                     current_category = line.split(",")[0].strip()
                     template_channels[current_category] = []
                 elif current_category:
-                    channel_name = line.split(",")[0].strip()
+                    channel_name = line.strip()
                     template_channels[current_category].append(channel_name)
     return template_channels
-
 
 def clean_channel_name(channel_name):
     """清洗频道名称（去除特殊字符并统一大写）"""
@@ -41,7 +39,6 @@ def clean_channel_name(channel_name):
     cleaned_name = re.sub(r'\s+', '', cleaned_name)
     cleaned_name = re.sub(r'(\D*)(\d+)', lambda m: m.group(1) + str(int(m.group(2))), cleaned_name)
     return cleaned_name.upper()
-
 
 def fetch_channels(url):
     """从URL抓取频道列表并解析"""
@@ -67,13 +64,11 @@ def fetch_channels(url):
         logging.error(f"获取 {url} 失败: {str(e)}")
     return channels
 
-
 def parse_m3u_lines(lines):
     """解析M3U格式内容"""
     channels = OrderedDict()
     current_category = None
     current_channel_name = None
-
     for line in lines:
         line = line.strip()
         if line.startswith("#EXTINF"):
@@ -90,12 +85,10 @@ def parse_m3u_lines(lines):
                 channels[current_category].append((current_channel_name, line.strip()))
     return channels
 
-
 def parse_txt_lines(lines):
     """解析TXT格式内容（每行频道名,URL）"""
     channels = OrderedDict()
     current_category = None
-
     for line in lines:
         line = line.strip()
         if "#genre#" in line:
@@ -109,7 +102,6 @@ def parse_txt_lines(lines):
                     channels[current_category].append((channel_name, u.strip()))
     return channels
 
-
 def match_channels(template_channels, all_channels):
     """匹配模板频道与抓取到的频道"""
     matched_channels = OrderedDict()
@@ -122,7 +114,6 @@ def match_channels(template_channels, all_channels):
                         matched_channels[t_category].setdefault(t_name, []).append(a_url)
     return matched_channels
 
-
 def filter_source_urls(template_file):
     """过滤并合并源URL的频道信息"""
     template_channels = parse_template(template_file)
@@ -132,7 +123,6 @@ def filter_source_urls(template_file):
         merge_channels(all_channels, merged_channels)
     return match_channels(template_channels, all_channels), template_channels
 
-
 def merge_channels(target, source):
     """合并两个频道字典"""
     for category, channel_list in source.items():
@@ -141,113 +131,107 @@ def merge_channels(target, source):
         else:
             target[category] = channel_list
 
-
 def is_ipv6(url):
     """判断URL是否包含IPv6地址"""
     return re.match(r'^https?://\[[0-9a-fA-F:]+\]', url, re.IGNORECASE) is not None
 
+def check_url_response_time(url):
+    """检测URL响应时间（毫秒）"""
+    try:
+        start_time = datetime.now()
+        response = requests.head(url, timeout=5, allow_redirects=True)
+        response.raise_for_status()
+        return (url, (datetime.now() - start_time).microseconds / 1000)
+    except Exception as e:
+        logging.warning(f"URL {url} 响应检测失败: {str(e)}")
+        return (url, float('inf'))
+
+def sort_by_response_time(urls):
+    """根据响应时间排序URL（升序）"""
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        results = list(executor.map(check_url_response_time, urls))
+    return [url for url, _ in sorted(results, key=lambda x: x[1])]
 
 def update_channel_urls(channels, template_channels):
-    """更新频道URL到M3U和TXT文件（整合IP版本，统一输出到output目录）"""
-    written_urls = set()  # 统一去重集合
+    """更新频道URL到文件（含响应时间排序）"""
+    written_ips = set()  # 统一管理已写入的URL（不区分版本）
     current_date = datetime.now().strftime("%Y-%m-%d")
-    
-    # 创建输出目录
-    os.makedirs("output", exist_ok=True)
-    
-    # 处理公告信息（设置动态日期）
-    for group in config.announcements:
-        for entry in group['entries']:
-            if entry['name'] is None:
-                entry['name'] = current_date
-    
-    # 生成EPG URL列表（带双引号）
     epg_quoted = [f'"{url}"' for url in config.epg_urls]
     
-    # 统一打开标准格式文件
+    os.makedirs("output", exist_ok=True)  # 统一输出目录
+    
     with open("output/live.m3u", "w", encoding="utf-8") as m3u, \
          open("output/live.txt", "w", encoding="utf-8") as txt:
-        
-        # 写入M3U头部
+
         m3u.write(f'#EXTM3U x-tvg-url={",".join(epg_quoted)}\n')
-        
-        # 写入系统公告（去除IP版本区分）
         _write_announcements(m3u, txt, current_date)
-        
-        # 写入频道内容（合并IP版本处理）
-        _write_channels(channels, template_channels, m3u, txt, written_urls)
+        _write_channels(channels, template_channels, m3u, txt, written_ips)
 
-
-def _write_announcements(m3u_file, txt_file, current_date):
-    """辅助函数：写入系统公告（统一格式）"""
+def _write_announcements(m3u, txt, current_date):
+    """写入系统公告"""
     for group in config.announcements:
-        txt_file.write(f"{group['channel']},#genre#\n")
+        txt.write(f"{group['channel']},#genre#\n")
         for entry in group['entries']:
             name = entry['name'] or current_date
-            logo = entry.get("logo", config.LOGO_BASE_URL + "announcement.png")  # 备用图标
-            m3u_file.write(f'#EXTINF:-1 tvg-id="1" tvg-name="{name}" tvg-logo="{logo}" group-title="{group["channel"]}",{name}\n')
-            m3u_file.write(f"{entry['url']}\n")
-            txt_file.write(f"{name},{entry['url']}\n")
+            m3u.write(f'#EXTINF:-1 tvg-id="1" tvg-name="{name}" tvg-logo="{entry["logo"]}" group-title="{group["channel"]}",{name}\n')
+            m3u.write(f"{entry['url']}\n")
+            txt.write(f"{name},{entry['url']}\n")
 
-
-def _write_channels(channels, template_channels, m3u_file, txt_file, written_set):
-    """辅助函数：写入频道内容（合并IP版本处理）"""
+def _write_channels(channels, template_channels, m3u, txt, written_ips):
+    """写入频道内容（含响应排序）"""
     for category, channel_list in template_channels.items():
-        txt_file.write(f"{category},#genre#\n")
+        txt.write(f"{category},#genre#\n")
         if category in channels:
             for channel_name in channel_list:
                 if channel_name in channels[category]:
-                    _process_channel_ips(
+                    _process_channel(
                         category,
                         channel_name,
                         channels[category][channel_name],
-                        m3u_file, txt_file, written_set
+                        m3u, txt,
+                        written_ips
                     )
 
-
-def _process_channel_ips(category, channel_name, urls, m3u_file, txt_file, written_set):
-    """辅助函数：处理混合IP版本的URL（统一写入标准文件）"""
-    # 排序并过滤URL（保留IP版本优先级）
-    priority = config.ip_version_priority.lower() == "ipv6"
-    sorted_urls = sorted(urls, key=lambda u: not is_ipv6(u) if priority else is_ipv6(u))
-    filtered_urls = [u for u in sorted_urls if u and u not in written_set and not _is_blacklisted(u)]
+def _process_channel(category, channel_name, urls, m3u, txt, written_ips):
+    """处理单个频道的URL排序和写入"""
+    # 去重并分离IP版本
+    unique_urls = list({u for u in urls if u and not _is_blacklisted(u)})
+    ipv4_urls = [u for u in unique_urls if not is_ipv6(u)]
+    ipv6_urls = [u for u in unique_urls if is_ipv6(u)]
     
-    for idx, url in enumerate(filtered_urls, 1):
-        ip_version = "IPV6" if is_ipv6(url) else "IPV4"
-        new_url = add_url_suffix(url, idx, len(filtered_urls), ip_version)
-        _write_to_file(m3u_file, txt_file, category, channel_name, idx, new_url)
-        written_set.add(url)  # 统一记录已写入的URL（不区分IP版本）
-
-
-def sort_and_filter_urls(urls, written_set):
-    """排序并过滤URL（去重、去黑名单）"""
-    priority = config.ip_version_priority.lower() == "ipv6"
-    sorted_urls = sorted(urls, key=lambda u: not is_ipv6(u) if priority else is_ipv6(u))
-    return [u for u in sorted_urls if u and u not in written_set and not _is_blacklisted(u)]
-
-
-def _is_blacklisted(url):
-    """检查URL是否在黑名单中（使用config中的全局黑名单）"""
-    return any(bl in url for bl in config.url_blacklist)
-
-
-def add_url_suffix(url, index, total, ip_version):
-    """为URL添加后缀（线路编号，保留IP版本标识）"""
-    suffix = f"${ip_version}" if total == 1 else f"${ip_version}•线路{index}"
-    base = url.split('$', 1)[0] if '$' in url else url
-    return f"{base}{suffix}"
-
+    # 按优先级合并URL列表
+    if config.ip_version_priority.upper() == "IPV6":
+        sorted_urls = ipv6_urls + ipv4_urls
+    else:
+        sorted_urls = ipv4_urls + ipv6_urls
+    
+    # 按响应时间排序（同版本内排序）
+    sorted_by_time = sort_by_response_time(sorted_urls)
+    
+    # 生成带序号的URL
+    for idx, url in enumerate(sorted_by_time, 1):
+        if url in written_ips:
+            continue
+        version = "IPV6" if is_ipv6(url) else "IPV4"
+        suffix = f"${version}•线路{idx}" if len(sorted_by_time) > 1 else f"${version}"
+        processed_url = f"{url.split('$', 1)[0]}{suffix}"  # 保留原有参数并添加后缀
+        
+        _write_to_file(m3u, txt, category, channel_name, idx, processed_url)
+        written_ips.add(url)
 
 def _write_to_file(m3u_file, txt_file, category, name, idx, url):
-    """辅助函数：写入单个频道到文件（统一格式）"""
-    logo = f"{config.LOGO_BASE_URL}{name}.png"
+    """写入单个频道到文件"""
+    logo = f"https://gitee.com/IIII-9306/PAV/raw/master/logos/{name}.png"
     m3u_file.write(f'#EXTINF:-1 tvg-id="{idx}" tvg-name="{name}" tvg-logo="{logo}" group-title="{category}",{name}\n')
     m3u_file.write(f"{url}\n")
     txt_file.write(f"{name},{url}\n")
 
+def _is_blacklisted(url):
+    """检查URL是否在黑名单中"""
+    return any(bl in url for bl in config.url_blacklist)
 
 if __name__ == "__main__":
-    template = "demo.txt"  # 模板文件路径可从配置中读取
+    template = "demo.txt"
     matched, tmpl = filter_source_urls(template)
     update_channel_urls(matched, tmpl)
-    logging.info("频道列表更新完成，结果保存在output目录")
+    logging.info("频道列表更新完成，已按响应时间排序")
