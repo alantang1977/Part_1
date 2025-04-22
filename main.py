@@ -4,7 +4,7 @@ import logging
 from collections import OrderedDict
 from datetime import datetime
 import config
-
+import os  # 新增文件操作模块
 
 # 日志配置
 logging.basicConfig(
@@ -148,57 +148,52 @@ def is_ipv6(url):
 
 
 def update_channel_urls(channels, template_channels):
-    """更新频道URL到M3U和TXT文件"""
-    written_ipv4 = set()
-    written_ipv6 = set()
+    """更新频道URL到M3U和TXT文件（整合IP版本，统一输出到output目录）"""
+    written_urls = set()  # 统一去重集合
     current_date = datetime.now().strftime("%Y-%m-%d")
-
+    
+    # 创建输出目录
+    os.makedirs("output", exist_ok=True)
+    
     # 处理公告信息（设置动态日期）
     for group in config.announcements:
         for entry in group['entries']:
             if entry['name'] is None:
                 entry['name'] = current_date
-
+    
     # 生成EPG URL列表（带双引号）
     epg_quoted = [f'"{url}"' for url in config.epg_urls]
-
-    with open("live_ipv4.m3u", "w", encoding="utf-8") as m3u4, \
-         open("live_ipv4.txt", "w", encoding="utf-8") as txt4, \
-         open("live_ipv6.m3u", "w", encoding="utf-8") as m3u6, \
-         open("live_ipv6.txt", "w", encoding="utf-8") as txt6:
-
-        # 写入M3U头部（修复后的EPG URL拼接）
-        m3u4.write(f'#EXTM3U x-tvg-url={",".join(epg_quoted)}\n')
-        m3u6.write(f'#EXTM3U x-tvg-url={",".join(epg_quoted)}\n')
-
-        # 写入系统公告
-        _write_announcements(m3u4, txt4, m3u6, txt6, current_date)
-
-        # 写入频道内容
-        _write_channels(channels, template_channels, m3u4, txt4, m3u6, txt6, written_ipv4, written_ipv6)
+    
+    # 统一打开标准格式文件
+    with open("output/live.m3u", "w", encoding="utf-8") as m3u, \
+         open("output/live.txt", "w", encoding="utf-8") as txt:
+        
+        # 写入M3U头部
+        m3u.write(f'#EXTM3U x-tvg-url={",".join(epg_quoted)}\n')
+        
+        # 写入系统公告（去除IP版本区分）
+        _write_announcements(m3u, txt, current_date)
+        
+        # 写入频道内容（合并IP版本处理）
+        _write_channels(channels, template_channels, m3u, txt, written_urls)
 
 
-def _write_announcements(m3u4, txt4, m3u6, txt6, current_date):
-    """辅助函数：写入系统公告"""
+def _write_announcements(m3u_file, txt_file, current_date):
+    """辅助函数：写入系统公告（统一格式）"""
     for group in config.announcements:
-        txt4.write(f"{group['channel']},#genre#\n")
-        txt6.write(f"{group['channel']},#genre#\n")
+        txt_file.write(f"{group['channel']},#genre#\n")
         for entry in group['entries']:
             name = entry['name'] or current_date
-            m3u4.write(f'#EXTINF:-1 tvg-id="1" tvg-name="{name}" tvg-logo="{entry["logo"]}" group-title="{group["channel"]}",{name}\n')
-            m3u4.write(f"{entry['url']}\n")
-            txt4.write(f"{name},{entry['url']}\n")
-
-            m3u6.write(f'#EXTINF:-1 tvg-id="1" tvg-name="{name}" tvg-logo="{entry["logo"]}" group-title="{group["channel"]}",{name}\n')
-            m3u6.write(f"{entry['url']}\n")
-            txt6.write(f"{name},{entry['url']}\n")
+            logo = entry.get("logo", config.LOGO_BASE_URL + "announcement.png")  # 备用图标
+            m3u_file.write(f'#EXTINF:-1 tvg-id="1" tvg-name="{name}" tvg-logo="{logo}" group-title="{group["channel"]}",{name}\n')
+            m3u_file.write(f"{entry['url']}\n")
+            txt_file.write(f"{name},{entry['url']}\n")
 
 
-def _write_channels(channels, template_channels, m3u4, txt4, m3u6, txt6, written_ipv4, written_ipv6):
-    """辅助函数：写入频道内容"""
+def _write_channels(channels, template_channels, m3u_file, txt_file, written_set):
+    """辅助函数：写入频道内容（合并IP版本处理）"""
     for category, channel_list in template_channels.items():
-        txt4.write(f"{category},#genre#\n")
-        txt6.write(f"{category},#genre#\n")
+        txt_file.write(f"{category},#genre#\n")
         if category in channels:
             for channel_name in channel_list:
                 if channel_name in channels[category]:
@@ -206,24 +201,22 @@ def _write_channels(channels, template_channels, m3u4, txt4, m3u6, txt6, written
                         category,
                         channel_name,
                         channels[category][channel_name],
-                        m3u4, txt4, written_ipv4, "IPV4",
-                        m3u6, txt6, written_ipv6, "IPV6"
+                        m3u_file, txt_file, written_set
                     )
 
 
-def _process_channel_ips(category, channel_name, urls, m3u4, txt4, written4, ip4, m3u6, txt6, written6, ip6):
-    """辅助函数：处理IPv4和IPv6地址的URL"""
-    # 过滤并排序IPv4 URL
-    ipv4_urls = [u for u in sort_and_filter_urls(urls, written4) if not is_ipv6(u)]
-    for idx, url in enumerate(ipv4_urls, 1):
-        new_url = add_url_suffix(url, idx, len(ipv4_urls), ip4)
-        _write_to_file(m3u4, txt4, category, channel_name, idx, new_url)
-
-    # 过滤并排序IPv6 URL
-    ipv6_urls = [u for u in sort_and_filter_urls(urls, written6) if is_ipv6(u)]
-    for idx, url in enumerate(ipv6_urls, 1):
-        new_url = add_url_suffix(url, idx, len(ipv6_urls), ip6)
-        _write_to_file(m3u6, txt6, category, channel_name, idx, new_url)
+def _process_channel_ips(category, channel_name, urls, m3u_file, txt_file, written_set):
+    """辅助函数：处理混合IP版本的URL（统一写入标准文件）"""
+    # 排序并过滤URL（保留IP版本优先级）
+    priority = config.ip_version_priority.lower() == "ipv6"
+    sorted_urls = sorted(urls, key=lambda u: not is_ipv6(u) if priority else is_ipv6(u))
+    filtered_urls = [u for u in sorted_urls if u and u not in written_set and not _is_blacklisted(u)]
+    
+    for idx, url in enumerate(filtered_urls, 1):
+        ip_version = "IPV6" if is_ipv6(url) else "IPV4"
+        new_url = add_url_suffix(url, idx, len(filtered_urls), ip_version)
+        _write_to_file(m3u_file, txt_file, category, channel_name, idx, new_url)
+        written_set.add(url)  # 统一记录已写入的URL（不区分IP版本）
 
 
 def sort_and_filter_urls(urls, written_set):
@@ -239,22 +232,22 @@ def _is_blacklisted(url):
 
 
 def add_url_suffix(url, index, total, ip_version):
-    """为URL添加后缀（线路编号）"""
+    """为URL添加后缀（线路编号，保留IP版本标识）"""
     suffix = f"${ip_version}" if total == 1 else f"${ip_version}•线路{index}"
     base = url.split('$', 1)[0] if '$' in url else url
     return f"{base}{suffix}"
 
 
 def _write_to_file(m3u_file, txt_file, category, name, idx, url):
-    """辅助函数：写入单个频道到文件"""
-    logo = f"https://gitee.com/IIII-9306/PAV/raw/master/logos/{name}.png"
+    """辅助函数：写入单个频道到文件（统一格式）"""
+    logo = f"{config.LOGO_BASE_URL}{name}.png"
     m3u_file.write(f'#EXTINF:-1 tvg-id="{idx}" tvg-name="{name}" tvg-logo="{logo}" group-title="{category}",{name}\n')
     m3u_file.write(f"{url}\n")
     txt_file.write(f"{name},{url}\n")
 
 
 if __name__ == "__main__":
-    template = "demo.txt"
+    template = "demo.txt"  # 模板文件路径可从配置中读取
     matched, tmpl = filter_source_urls(template)
     update_channel_urls(matched, tmpl)
-    logging.info("频道列表更新完成")
+    logging.info("频道列表更新完成，结果保存在output目录")
