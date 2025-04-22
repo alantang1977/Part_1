@@ -2,36 +2,53 @@ name: Daily Update
 
 on:
   schedule:
-    - cron: '55 0 */2 * *'  # 每2天凌晨0点55分执行
+    - cron: '55 0 */2 * *' # 每2天凌晨00点55分执行任务（上海时区对应的UTC时间）
   workflow_dispatch:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
-  build:
+  run_script:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
 
-      - name: Install dependencies
-        run: pip install requests
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
 
-      - name: Run main script
-        run: python main.py
+    - name: Install dependencies
+      run: pip install requests
 
-      - name: Commit changes
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add output/
-          if git diff --staged --exit-code; then
-              echo "No changes to commit"
-          else
-              git commit -m "Update live streams"
-              git push
-          fi
+    - name: Run main script
+      run: python main.py
+
+    - name: Configure Git user
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+
+    - name: Add changed files (根目录下的生成文件)
+      run: git add live_ipv4.m3u live_ipv6.m3u live_ipv4.txt live_ipv6.txt epg.xml
+
+    - name: Commit and push if changes exist
+      run: |
+        if git diff --staged --exit-code; then
+          echo "No changes to commit"
+        else
+          git commit -m "Update live streams"
+          git push
+        fi
+    env:
+      TZ: Asia/Shanghai
