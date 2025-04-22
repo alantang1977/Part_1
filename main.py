@@ -153,19 +153,17 @@ def sort_by_response_time(urls):
     return [url for url, _ in sorted(results, key=lambda x: x[1])]
 
 def update_channel_urls(channels, template_channels):
-    """更新频道URL到文件（含响应时间排序）"""
-    written_ips = set()  # 统一管理已写入的URL（不区分版本）
+    """更新频道URL到文件（统一M3U和TXT格式）"""
+    os.makedirs("output", exist_ok=True)  # 创建输出目录
     current_date = datetime.now().strftime("%Y-%m-%d")
     epg_quoted = [f'"{url}"' for url in config.epg_urls]
-    
-    os.makedirs("output", exist_ok=True)  # 统一输出目录
     
     with open("output/live.m3u", "w", encoding="utf-8") as m3u, \
          open("output/live.txt", "w", encoding="utf-8") as txt:
 
         m3u.write(f'#EXTM3U x-tvg-url={",".join(epg_quoted)}\n')
         _write_announcements(m3u, txt, current_date)
-        _write_channels(channels, template_channels, m3u, txt, written_ips)
+        _write_channels(channels, template_channels, m3u, txt)
 
 def _write_announcements(m3u, txt, current_date):
     """写入系统公告"""
@@ -177,8 +175,9 @@ def _write_announcements(m3u, txt, current_date):
             m3u.write(f"{entry['url']}\n")
             txt.write(f"{name},{entry['url']}\n")
 
-def _write_channels(channels, template_channels, m3u, txt, written_ips):
-    """写入频道内容（含响应排序）"""
+def _write_channels(channels, template_channels, m3u, txt):
+    """写入频道内容（统一处理所有URL）"""
+    written_urls = set()  # 统一管理已写入的URL
     for category, channel_list in template_channels.items():
         txt.write(f"{category},#genre#\n")
         if category in channels:
@@ -189,39 +188,31 @@ def _write_channels(channels, template_channels, m3u, txt, written_ips):
                         channel_name,
                         channels[category][channel_name],
                         m3u, txt,
-                        written_ips
+                        written_urls
                     )
 
-def _process_channel(category, channel_name, urls, m3u, txt, written_ips):
+def _process_channel(category, channel_name, urls, m3u, txt, written_urls):
     """处理单个频道的URL排序和写入"""
-    # 去重并分离IP版本
-    unique_urls = list({u for u in urls if u and not _is_blacklisted(u)})
-    ipv4_urls = [u for u in unique_urls if not is_ipv6(u)]
-    ipv6_urls = [u for u in unique_urls if is_ipv6(u)]
+    # 去重并过滤黑名单
+    unique_urls = [u for u in {u for u in urls if u and not _is_blacklisted(u)}]
     
-    # 按优先级合并URL列表
-    if config.ip_version_priority.upper() == "IPV6":
-        sorted_urls = ipv6_urls + ipv4_urls
-    else:
-        sorted_urls = ipv4_urls + ipv6_urls
-    
-    # 按响应时间排序（同版本内排序）
-    sorted_by_time = sort_by_response_time(sorted_urls)
+    # 按响应时间排序
+    sorted_urls = sort_by_response_time(unique_urls)
     
     # 生成带序号的URL
-    for idx, url in enumerate(sorted_by_time, 1):
-        if url in written_ips:
+    for idx, url in enumerate(sorted_urls, 1):
+        if url in written_urls:
             continue
-        version = "IPV6" if is_ipv6(url) else "IPV4"
-        suffix = f"${version}•线路{idx}" if len(sorted_by_time) > 1 else f"${version}"
-        processed_url = f"{url.split('$', 1)[0]}{suffix}"  # 保留原有参数并添加后缀
+        version_suffix = "$IPV6" if is_ipv6(url) else "$IPV4"
+        line_suffix = f"•线路{idx}" if len(sorted_urls) > 1 else ""
+        processed_url = f"{url.split('$', 1)[0]}{version_suffix}{line_suffix}"
         
         _write_to_file(m3u, txt, category, channel_name, idx, processed_url)
-        written_ips.add(url)
+        written_urls.add(url)
 
 def _write_to_file(m3u_file, txt_file, category, name, idx, url):
     """写入单个频道到文件"""
-    logo = f"https://gitee.com/IIII-9306/PAV/raw/master/logos/{name}.png"
+    logo = f"{config.LOGO_BASE_URL}{name}.png"
     m3u_file.write(f'#EXTINF:-1 tvg-id="{idx}" tvg-name="{name}" tvg-logo="{logo}" group-title="{category}",{name}\n')
     m3u_file.write(f"{url}\n")
     txt_file.write(f"{name},{url}\n")
@@ -234,4 +225,4 @@ if __name__ == "__main__":
     template = "demo.txt"
     matched, tmpl = filter_source_urls(template)
     update_channel_urls(matched, tmpl)
-    logging.info("频道列表更新完成，已按响应时间排序")
+    logging.info("频道列表更新完成，已生成标准M3U和TXT文件")
