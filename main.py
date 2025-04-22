@@ -104,8 +104,10 @@ def match_template_channels(template_categories, all_channels):
     return matched
 
 def generate_m3u(matched_channels):
-    """生成标准M3U8格式文件"""
-    output = f"#EXTM3U x-tvg-url=\"{'\",\"'.join(EPG_URLS)}\"\n"  # 修复此处引号嵌套问题
+    """生成标准M3U8格式文件（修复引号嵌套和反斜杠问题）"""
+    # 正确拼接EPG URL，使用单引号包裹f-string外层，内部用双引号
+    epg_urls_quoted = [f'"{url}"' for url in config["epg_urls"]]
+    output = f'#EXTM3U x-tvg-url={"\",\"".join(epg_urls_quoted)}\n'  # 关键修复行
     
     # 添加系统公告频道
     for group in ANNOUNCEMENTS:
