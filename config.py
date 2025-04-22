@@ -93,7 +93,7 @@ announcements = [
     {
         "channel": "系统公告",
         "entries": [
-            {"name": "每日自动更新", "url": "https://example.com/announcement.m3u", "logo": "https://codeberg.org/alantang/photo/raw/branch/main/ChatGPTImage.png"}
+            {"name": "每日自动更新", "url": "https://tencentplaygsm.gztv.com/live/zonghes.m3u8?txTime=65797c44&amp;txSecret=7e4590b2320037d7ce49ce9eac2dd6c0", "logo": "https://codeberg.org/alantang/photo/raw/branch/main/ChatGPTImage.png"}
         ]
     }
 ]
