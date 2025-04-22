@@ -1,0 +1,37 @@
+name: Daily Update
+
+on:
+  schedule:
+    - cron: '55 0 */2 * *'  # 每2天凌晨0点55分执行
+  workflow_dispatch:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run main script
+        run: python main.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add output/
+          if git diff --staged --exit-code; then
+              echo "No changes to commit"
+          else
+              git commit -m "Update live streams"
+              git push
+          fi
