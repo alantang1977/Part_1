@@ -1,14 +1,13 @@
 """解析工具模块"""
 import re
-from collections import OrderedDict  # 添加缺失的导入
-from config import URL_BLACKLIST
+from config import url_blacklist  # 修正导入变量名
 
 def parse_template(template_path):
     """解析频道模板，生成分类-频道列表"""
     with open(template_path, "r", encoding="utf-8") as f:
         lines = [line.strip() for line in f if line.strip() and not line.startswith("#")]
     
-    categories = OrderedDict()  # 使用OrderedDict保持顺序
+    categories = {}
     current_category = None
     for line in lines:
         if "#genre#" in line:
@@ -20,7 +19,7 @@ def parse_template(template_path):
 
 def parse_source_content(content, source_type):
     """解析数据源内容（M3U/TXT）"""
-    channels = OrderedDict()  # 使用OrderedDict保持顺序
+    channels = {}
     if source_type == "m3u":
         return _parse_m3u(content)
     elif source_type == "txt":
@@ -30,7 +29,6 @@ def parse_source_content(content, source_type):
 def _parse_m3u(content):
     """解析M3U格式"""
     entries = content.split("#EXTINF:-1,")
-    channels = OrderedDict()  # 使用OrderedDict保持顺序
     for entry in entries[1:]:
         parts = entry.split("\n", 1)
         channel_name = parts[0].strip()
@@ -41,7 +39,6 @@ def _parse_m3u(content):
 
 def _parse_txt(content):
     """解析TXT格式（每行：频道名,URL）"""
-    channels = OrderedDict()  # 使用OrderedDict保持顺序
     for line in content.splitlines():
         if "," in line:
             name, url = line.split(",", 1)
@@ -57,7 +54,7 @@ def _add_channel(channels, name, url):
 
 def _is_blacklisted(url):
     """检查黑名单"""
-    return any(bl in url for bl in URL_BLACKLIST)
+    return any(bl in url for bl in url_blacklist)  # 使用正确的变量名
 
 def _has_valid_ip(url):
     """检查有效IP"""
