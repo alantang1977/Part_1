@@ -1,11 +1,10 @@
-"""系统配置文件（整合所有参数）"""
+"""系统配置中心（所有外部依赖集中管理）"""
 import os
 
 # 基础配置
-IP_VERSION_PRIORITY = "auto"  # 自动检测IP版本
-LOGO_BASE_URL = "https://gitee.com/IIII-9306/PAV/raw/master/logos/"
+LOGO_BASE_URL = "https://gitee.com/IIII-9306/PAV/raw/master/logos/"  # 频道LOGO基础URL
 
-# 输入配置
+# 数据源配置（支持多URL并发抓取）
 SOURCE_URLS = [
     #"http://aktv.space/live.m3u",
     #"http://92.112.21.169:30000/mytv.m3u",
@@ -59,27 +58,25 @@ SOURCE_URLS = [
 
 # 输出配置
 OUTPUT_CONFIG = {
-    "output_dir": "output",
-    "m3u_filename": "live.m3u",
-    "txt_filename": "live.txt"
+    "output_dir": "output",          # 输出目录
+    "m3u_filename": "live.m3u",       # M3U文件名
+    "txt_filename": "live.txt"        # TXT文件名
 }
 
-# 网络配置
+# 网络配置（统一管理超时和重试策略）
 NETWORK_CONFIG = {
-    "timeout": 10,          # 网络请求超时时间（秒）
-    "max_workers": None,    # 线程池最大工作线程（自动计算）
-    "retry_attempts": 3     # 重试次数
+    "timeout": 10,           # 网络请求超时时间（秒）
+    "max_retries": 3         # 最大重试次数
 }
 
-# 黑名单配置（支持正则表达式）
+# 黑名单配置（正则表达式过滤无效URL）
 URL_BLACKLIST = [
-    r"epg\.pw/stream/",
-    r"[2409:8087:1a01:df::7005]/ottrrs\.hl\.chinamobile\.com",
-    r"stream1\.freetv\.fun",
-    # 其他黑名单规则...
+    r"epg\.pw/stream/",       # 示例：过滤包含特定路径的URL
+    r"[2409:8087:1a01:df::7005]/ottrrs\.hl\.chinamobile\.com",  # 示例：过滤特定IPv6地址
+    r"stream1\.freetv\.fun"   # 示例：过滤特定域名
 ]
 
-# 系统公告配置
+# 系统公告配置（显示在文件顶部的特殊频道组）
 ANNOUNCEMENTS = [
     {
         "channel": "系统公告",
@@ -93,11 +90,8 @@ ANNOUNCEMENTS = [
     }
 ]
 
-# EPG配置
+# EPG（电子节目指南）配置
 EPG_URLS = [
     "https://epg.v1.mk/fy.xml",
-    "http://epg.51zmt.top:8000/e.xml",
-    "https://epg.pw/xmltv/epg_CN.xml",
-    "https://epg.pw/xmltv/epg_HK.xml",
-    "https://epg.pw/xmltv/epg_TW.xml"
+    "http://epg.51zmt.top:8000/e.xml"
 ]
