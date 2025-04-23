@@ -47,7 +47,7 @@ source_urls = [
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/SPX372928/MyIPTV/master/黑龙江PLTV移动CDN版.txt",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/qingwen07/awesome-iptv/main/tvbox_live_all.txt",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/kimwang1978/collect-tv-txt/main/merged_output.m3u",
-    "https://live.zhoujie218.top/tv/iptv4.txt"，
+    "https://live.zhoujie218.top/tv/iptv4.txt"
     # 保留原有其他源URL...
 ]
 
