@@ -1,89 +1,66 @@
-"""解析工具模块"""
-import re
-from collections import OrderedDict  # 用于保持分类/频道顺序
-from config import url_blacklist     # 修正变量名（小写）
-
-def parse_template(template_path):
-    """解析频道模板文件，生成分类-频道列表（有序字典）"""
-    template_channels = OrderedDict()
-    current_category = None
-    
-    with open(template_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            
-            if "#genre#" in line:
-                current_category = line.split(",", 1)[0].strip()
-                template_channels[current_category] = []
-            elif current_category:
-                template_channels[current_category].append(line.strip())
-    
-    return template_channels
+"""
+数据源解析工具模块
+支持解析 M3U 和 TXT 格式的直播源文件
+"""
 
 def parse_source_content(content, source_type):
-    """解析数据源内容（M3U/TXT），返回有序字典"""
-    channels = OrderedDict()  # 保持分类顺序
-    
+    """
+    解析数据源内容（M3U/TXT）
+    :param content: 数据源文件内容（字符串）
+    :param source_type: 数据源类型（"m3u" 或 "txt"）
+    :return: 解析后的频道字典 {频道名: [线路列表]}
+    """
+    channels = {}
     if source_type == "m3u":
-        _parse_m3u(content, channels)
+        return _parse_m3u(content)
     elif source_type == "txt":
-        _parse_txt(content, channels)
-    
+        return _parse_txt(content)
     return channels
 
-def _parse_m3u(content, channels):
-    """解析M3U格式内容（内部方法）"""
-    entries = content.split("#EXTINF:-1,")
-    for entry in entries[1:]:  # 跳过第一个空元素
-        parts = entry.split("\n", 1)
-        if len(parts) < 2:
-            continue  # 跳过不完整的条目
-        
-        channel_name = parts[0].strip()
-        url = parts[1].strip()
-        
-        if _is_valid_entry(channel_name, url):
-            _add_channel(channels, channel_name, url)
-
-def _parse_txt(content, channels):
-    """解析TXT格式内容（内部方法，每行格式：频道名,URL）"""
-    for line in content.splitlines():
+def _parse_txt(content):
+    """解析 TXT 格式的直播源（每行格式：频道名,URL$IPV6•线路XX）"""
+    channels = {}
+    for line in content.strip().split("\n"):
         line = line.strip()
         if not line or "," not in line:
             continue
-        
-        name, url = line.split(",", 1)
-        name = name.strip()
-        url = url.strip()
-        
-        if _is_valid_entry(name, url):
-            _add_channel(channels, name, url)
+        # 分割频道名和 URL 部分
+        channel_name, url_part = line.split(",", 1)
+        # 提取 URL 和线路号（处理 $IPV6•线路XX 后缀）
+        url, line_info = url_part.split("$IPV6•", 1)
+        line_number = line_info.split("线路")[-1].strip()  # 提取线路号（如 "22"）
+        # 存储到频道字典
+        if channel_name not in channels:
+            channels[channel_name] = []
+        channels[channel_name].append({
+            "url": url,
+            "line_number": line_number
+        })
+    return channels
 
-def _is_valid_entry(name, url):
-    """验证条目有效性：非空、不在黑名单、包含有效IP"""
-    if not name or not url:
-        return False
-    if _is_blacklisted(url):
-        return False
-    if not _has_valid_ip(url):
-        return False
-    return True
+def _parse_m3u(content):
+    """解析 M3U 格式的直播源（示例框架，需根据实际格式扩展）"""
+    channels = {}
+    lines = content.strip().split("\n")
+    for line in lines:
+        line = line.strip()
+        if line.startswith("#EXTINF"):
+            # 提取频道名（示例逻辑，实际需解析 EXTINF 标签）
+            channel_name = line.split(",")[-1] if "," in line else "未知频道"
+        elif line.startswith("http"):
+            # 假设每行 URL 对应上一个 EXTINF 的频道
+            if "channel_name" in locals():
+                if channel_name not in channels:
+                    channels[channel_name] = []
+                channels[channel_name].append({"url": line})
+    return channels
 
-def _add_channel(channels, name, url):
-    """统一添加频道（自动去重，保持顺序）"""
-    if name not in channels:
-        channels[name] = []
-    if url not in channels[name]:  # 避免重复添加相同URL
-        channels[name].append(url)
-
-def _is_blacklisted(url):
-    """检查URL是否在黑名单中（支持部分匹配）"""
-    return any(bl in url for bl in url_blacklist)
-
-def _has_valid_ip(url):
-    """检查URL是否包含有效IPv4或IPv6地址"""
-    ipv4_pattern = r"\b(?:\d{1,3}\.){3}\d{1,3}\b"       # IPv4地址
-    ipv6_pattern = r"\[([0-9a-fA-F:]+)\]"               # IPv6地址（带方括号）
-    return re.search(f"{ipv4_pattern}|{ipv6_pattern}", url, re.IGNORECASE) is not None
+# 示例用法
+if __name__ == "__main__":
+    # 读取 TXT 示例内容（模拟 live_ipv6.txt 格式）
+    txt_content = """
+    江西卫视,http://[2409:8087:4c0a:22:1::11]:6410/...$IPV6•线路22
+    安徽卫视,http://[2409:8087:5e01:34::38]:6610/...$IPV6•线路23
+    """
+    parsed = parse_source_content(txt_content, "txt")
+    print(f"解析结果: {parsed}")
