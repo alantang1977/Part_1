@@ -1,10 +1,11 @@
+"""核心业务逻辑"""
 import re
 import requests
 import logging
-from collections import OrderedDict
 from datetime import datetime
-import config
-import os
+from collections import OrderedDict
+from config import SOURCE_CONFIG, OUTPUT_CONFIG, NETWORK_CONFIG, SYSTEM_ANNOUNCEMENTS
+from utils.parser import Parser
 from concurrent.futures import ThreadPoolExecutor
 
 # 日志配置
@@ -12,217 +13,101 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("function.log", "w", encoding="utf-8"),
+        logging.FileHandler("app.log", "a", encoding="utf-8"),
         logging.StreamHandler()
     ]
 )
 
-def parse_template(template_file):
-    """解析模板文件，提取频道分类和名称"""
-    template_channels = OrderedDict()
-    current_category = None
-    with open(template_file, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#"):
-                if "#genre#" in line:
-                    current_category = line.split(",")[0].strip()
-                    template_channels[current_category] = []
-                elif current_category:
-                    channel_name = line.strip()
-                    template_channels[current_category].append(channel_name)
-    return template_channels
+class ChannelManager:
+    """频道管理核心类"""
+    def __init__(self, template_path: str):
+        self.template_path = template_path
+        self.template_channels = Parser.parse_template(template_path)
+        self.all_channels = OrderedDict()
 
-def clean_channel_name(channel_name):
-    """清洗频道名称（去除特殊字符并统一大写）"""
-    cleaned_name = re.sub(r'[$「」-]', '', channel_name)
-    cleaned_name = re.sub(r'\s+', '', cleaned_name)
-    cleaned_name = re.sub(r'(\D*)(\d+)', lambda m: m.group(1) + str(int(m.group(2))), cleaned_name)
-    return cleaned_name.upper()
+    def fetch_and_merge_channels(self):
+        """抓取并合并所有数据源频道"""
+        for url in SOURCE_CONFIG["source_urls"]:
+            try:
+                content = self._fetch_url_content(url)
+                source_type = self._detect_source_type(content)
+                channels = Parser.parse_source(content, source_type)
+                self._merge_channels(channels)
+                logging.info(f"成功合并 {url} 频道数据")
+            except Exception as e:
+                logging.error(f"处理 {url} 时出错: {str(e)}")
 
-def fetch_channels(url):
-    """从URL抓取频道列表并解析"""
-    channels = OrderedDict()
-    try:
-        response = requests.get(url, timeout=10)
+    def _fetch_url_content(self, url: str) -> str:
+        """获取URL内容"""
+        response = requests.get(url, timeout=NETWORK_CONFIG["timeout"])
         response.raise_for_status()
-        response.encoding = 'utf-8'
-        lines = response.text.split("\n")
-        is_m3u = any(line.startswith("#EXTINF") for line in lines[:15])
-        source_type = "m3u" if is_m3u else "txt"
-        logging.info(f"成功获取 {url}，判断为 {source_type} 格式")
+        return response.text
 
-        if is_m3u:
-            channels = parse_m3u_lines(lines)
-        else:
-            channels = parse_txt_lines(lines)
+    def _detect_source_type(self, content: str) -> str:
+        """自动检测数据源类型"""
+        return "m3u" if any(line.startswith("#EXTINF") for line in content.splitlines()[:15]) else "txt"
 
-        if channels:
-            categories = ", ".join(channels.keys())
-            logging.info(f"{url} 包含频道分类: {categories}")
-    except requests.RequestException as e:
-        logging.error(f"获取 {url} 失败: {str(e)}")
-    return channels
+    def _merge_channels(self, source_channels: OrderedDict):
+        """合并频道数据（去重处理）"""
+        for name, urls in source_channels.items():
+            self.all_channels[name] = list({u for u in self.all_channels.get(name, []) + urls})
 
-def parse_m3u_lines(lines):
-    """解析M3U格式内容"""
-    channels = OrderedDict()
-    current_category = None
-    current_channel_name = None
-    for line in lines:
-        line = line.strip()
-        if line.startswith("#EXTINF"):
-            match = re.search(r'group-title="(.*?)",(.*)', line)
-            if match:
-                current_category = match.group(1).strip()
-                current_channel_name = match.group(2).strip()
-                if current_channel_name.startswith("CCTV"):
-                    current_channel_name = clean_channel_name(current_channel_name)
-                if current_category not in channels:
-                    channels[current_category] = []
-        elif line and not line.startswith("#"):
-            if current_category and current_channel_name:
-                channels[current_category].append((current_channel_name, line.strip()))
-    return channels
+    def sort_channels_by_speed(self) -> OrderedDict:
+        """按响应速度排序频道URL"""
+        sorted_channels = OrderedDict()
+        with ThreadPoolExecutor(max_workers=NETWORK_CONFIG["max_workers"]) as executor:
+            for name, urls in self.all_channels.items():
+                results = executor.map(self._check_response_time, urls)
+                sorted_urls = [url for url, _ in sorted(results, key=lambda x: x[1])]
+                sorted_channels[name] = sorted_urls
+        return sorted_channels
 
-def parse_txt_lines(lines):
-    """解析TXT格式内容（每行频道名,URL）"""
-    channels = OrderedDict()
-    current_category = None
-    for line in lines:
-        line = line.strip()
-        if "#genre#" in line:
-            current_category = line.split(",")[0].strip()
-            channels[current_category] = []
-        elif current_category and "," in line:
-            channel_name, url = line.split(",", 1)
-            channel_name = clean_channel_name(channel_name.strip())
-            for u in url.strip().split('#'):
-                if u:
-                    channels[current_category].append((channel_name, u.strip()))
-    return channels
+    @staticmethod
+    def _check_response_time(url: str) -> tuple[str, float]:
+        """检测URL响应时间（毫秒）"""
+        try:
+            start = datetime.now()
+            requests.head(url, timeout=5, allow_redirects=True)
+            return (url, (datetime.now() - start).microseconds / 1000)
+        except Exception:
+            return (url, float('inf'))
 
-def match_channels(template_channels, all_channels):
-    """匹配模板频道与抓取到的频道"""
-    matched_channels = OrderedDict()
-    for t_category, t_channels in template_channels.items():
-        matched_channels[t_category] = OrderedDict()
-        for t_name in t_channels:
-            for a_category, a_channel_list in all_channels.items():
-                for a_name, a_url in a_channel_list:
-                    if t_name == a_name:
-                        matched_channels[t_category].setdefault(t_name, []).append(a_url)
-    return matched_channels
+    def generate_output_files(self):
+        """生成输出文件（M3U/TXT）"""
+        os.makedirs(OUTPUT_CONFIG["output_dir"], exist_ok=True)
+        with open(f"{OUTPUT_CONFIG['output_dir']}/live.m3u", "w", encoding="utf-8") as m3u, \
+             open(f"{OUTPUT_CONFIG['output_dir']}/live.txt", "w", encoding="utf-8") as txt:
+            self._write_announcements(m3u, txt)
+            self._write_channel_data(m3u, txt)
 
-def filter_source_urls(template_file):
-    """过滤并合并源URL的频道信息"""
-    template_channels = parse_template(template_file)
-    all_channels = OrderedDict()
-    for url in config.source_urls:
-        merged_channels = fetch_channels(url)
-        merge_channels(all_channels, merged_channels)
-    return match_channels(template_channels, all_channels), template_channels
+    def _write_announcements(self, m3u, txt):
+        """写入系统公告"""
+        for group in SYSTEM_ANNOUNCEMENTS:
+            txt.write(f"{group['channel']},#genre#\n")
+            for entry in group["entries"]:
+                self._write_channel_entry(m3u, txt, entry["name"], entry["url"], group["channel"], 0)
 
-def merge_channels(target, source):
-    """合并两个频道字典"""
-    for category, channel_list in source.items():
-        if category in target:
-            target[category].extend(channel_list)
-        else:
-            target[category] = channel_list
+    def _write_channel_data(self, m3u, txt):
+        """写入频道数据"""
+        sorted_channels = self.sort_channels_by_speed()
+        for category, channel_names in self.template_channels.items():
+            txt.write(f"{category},#genre#\n")
+            for idx, channel_name in enumerate(channel_names, 1):
+                urls = sorted_channels.get(channel_name, [])
+                for url_idx, url in enumerate(urls, 1):
+                    self._write_channel_entry(m3u, txt, channel_name, url, category, url_idx)
 
-def is_ipv6(url):
-    """判断URL是否包含IPv6地址"""
-    return re.match(r'^https?://\[[0-9a-fA-F:]+\]', url, re.IGNORECASE) is not None
-
-def check_url_response_time(url):
-    """检测URL响应时间（毫秒）"""
-    try:
-        start_time = datetime.now()
-        response = requests.head(url, timeout=5, allow_redirects=True)
-        response.raise_for_status()
-        return (url, (datetime.now() - start_time).microseconds / 1000)
-    except Exception as e:
-        logging.warning(f"URL {url} 响应检测失败: {str(e)}")
-        return (url, float('inf'))
-
-def sort_by_response_time(urls):
-    """根据响应时间排序URL（升序）"""
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        results = list(executor.map(check_url_response_time, urls))
-    return [url for url, _ in sorted(results, key=lambda x: x[1])]
-
-def update_channel_urls(channels, template_channels):
-    """更新频道URL到文件（统一M3U和TXT格式）"""
-    os.makedirs("output", exist_ok=True)  # 创建输出目录
-    current_date = datetime.now().strftime("%Y-%m-%d")
-    epg_quoted = [f'"{url}"' for url in config.epg_urls]
-    
-    with open("output/live.m3u", "w", encoding="utf-8") as m3u, \
-         open("output/live.txt", "w", encoding="utf-8") as txt:
-
-        m3u.write(f'#EXTM3U x-tvg-url={",".join(epg_quoted)}\n')
-        _write_announcements(m3u, txt, current_date)
-        _write_channels(channels, template_channels, m3u, txt)
-
-def _write_announcements(m3u, txt, current_date):
-    """写入系统公告"""
-    for group in config.announcements:
-        txt.write(f"{group['channel']},#genre#\n")
-        for entry in group['entries']:
-            name = entry['name'] or current_date
-            m3u.write(f'#EXTINF:-1 tvg-id="1" tvg-name="{name}" tvg-logo="{entry["logo"]}" group-title="{group["channel"]}",{name}\n')
-            m3u.write(f"{entry['url']}\n")
-            txt.write(f"{name},{entry['url']}\n")
-
-def _write_channels(channels, template_channels, m3u, txt):
-    """写入频道内容（统一处理所有URL）"""
-    written_urls = set()  # 统一管理已写入的URL
-    for category, channel_list in template_channels.items():
-        txt.write(f"{category},#genre#\n")
-        if category in channels:
-            for channel_name in channel_list:
-                if channel_name in channels[category]:
-                    _process_channel(
-                        category,
-                        channel_name,
-                        channels[category][channel_name],
-                        m3u, txt,
-                        written_urls
-                    )
-
-def _process_channel(category, channel_name, urls, m3u, txt, written_urls):
-    """处理单个频道的URL排序和写入"""
-    # 去重并过滤黑名单
-    unique_urls = [u for u in {u for u in urls if u and not _is_blacklisted(u)}]
-    
-    # 按响应时间排序
-    sorted_urls = sort_by_response_time(unique_urls)
-    
-    # 生成带序号的URL
-    for idx, url in enumerate(sorted_urls, 1):
-        if url in written_urls:
-            continue
-        version_suffix = "$IPV6" if is_ipv6(url) else "$IPV4"
-        line_suffix = f"•线路{idx}" if len(sorted_urls) > 1 else ""
-        processed_url = f"{url.split('$', 1)[0]}{version_suffix}{line_suffix}"
-        
-        _write_to_file(m3u, txt, category, channel_name, idx, processed_url)
-        written_urls.add(url)
-
-def _write_to_file(m3u_file, txt_file, category, name, idx, url):
-    """写入单个频道到文件"""
-    logo = f"{config.LOGO_BASE_URL}{name}.png"
-    m3u_file.write(f'#EXTINF:-1 tvg-id="{idx}" tvg-name="{name}" tvg-logo="{logo}" group-title="{category}",{name}\n')
-    m3u_file.write(f"{url}\n")
-    txt_file.write(f"{name},{url}\n")
-
-def _is_blacklisted(url):
-    """检查URL是否在黑名单中"""
-    return any(bl in url for bl in config.url_blacklist)
+    @staticmethod
+    def _write_channel_entry(m3u, txt, name, url, category, idx):
+        """写入单个频道条目"""
+        logo = f"{OUTPUT_CONFIG['logo_base_url']}{name}.png"
+        m3u_line = f'#EXTINF:-1 tvg-id="{idx}" tvg-name="{name}" tvg-logo="{logo}" group-title="{category}",{name}\n{url}\n'
+        txt_line = f"{name},{url}\n"
+        m3u.write(m3u_line)
+        txt.write(txt_line)
 
 if __name__ == "__main__":
-    template = "demo.txt"
-    matched, tmpl = filter_source_urls(template)
-    update_channel_urls(matched, tmpl)
+    manager = ChannelManager("demo.txt")
+    manager.fetch_and_merge_channels()
+    manager.generate_output_files()
     logging.info("频道列表更新完成，已生成标准M3U和TXT文件")
