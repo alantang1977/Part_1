@@ -1,11 +1,7 @@
-"""系统配置中心（所有外部依赖集中管理）"""
-import os
+"""系统配置文件"""
+ip_version_priority = "auto"  # 保留但不再区分IP版本
 
-# 基础配置
-LOGO_BASE_URL = "https://gitee.com/IIII-9306/PAV/raw/master/logos/"  # 频道LOGO基础URL
-
-# 数据源配置（支持多URL并发抓取）
-SOURCE_URLS = [
+source_urls = [
     #"http://aktv.space/live.m3u",
     #"http://92.112.21.169:30000/mytv.m3u",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/hostemail/cdn/main/live/tv.txt",
@@ -51,46 +47,29 @@ SOURCE_URLS = [
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/SPX372928/MyIPTV/master/黑龙江PLTV移动CDN版.txt",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/qingwen07/awesome-iptv/main/tvbox_live_all.txt",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/kimwang1978/collect-tv-txt/main/merged_output.m3u",
-    "https://live.zhoujie218.top/tv/iptv4.txt"
+    "https://live.zhoujie218.top/tv/iptv4.txt"，
     # 保留原有其他源URL...
 ]
 
-# 输出配置
-OUTPUT_CONFIG = {
-    "output_dir": "output",          # 输出目录
-    "m3u_filename": "live.m3u",       # M3U文件名
-    "txt_filename": "live.txt"        # TXT文件名
-}
-
-# 网络配置（统一管理超时和重试策略）
-NETWORK_CONFIG = {
-    "timeout": 10,           # 网络请求超时时间（秒）
-    "max_retries": 3         # 最大重试次数
-}
-
-# 黑名单配置（正则表达式过滤无效URL）
-URL_BLACKLIST = [
-    r"epg\.pw/stream/",       # 示例：过滤包含特定路径的URL
-    r"[2409:8087:1a01:df::7005]/ottrrs\.hl\.chinamobile\.com",  # 示例：过滤特定IPv6地址
-    r"stream1\.freetv\.fun"   # 示例：过滤特定域名
+url_blacklist = [
+    "epg.pw/stream/",
+    "103.40.13.71:12390",
+    # ... 保留其他黑名单规则
 ]
 
-# 系统公告配置（显示在文件顶部的特殊频道组）
-ANNOUNCEMENTS = [
+announcements = [
     {
         "channel": "系统公告",
         "entries": [
-            {
-                "name": "每日自动更新",
-                "url": "https://codeberg.org/alantang/photo/raw/branch/main/ChatGPTImage.png",
-                "logo": "https://gitee.com/IIII-9306/PAV/raw/master/logos/"
-            }
+            {"name": "每日自动更新", "url": "https://codeberg.org/alantang/photo/raw/branch/main/ChatGPTImage.png", "logo": "https://gitee.com/IIII-9306/PAV/raw/master/logos/"}
         ]
     }
 ]
 
-# EPG（电子节目指南）配置
-EPG_URLS = [
+epg_urls = [
     "https://epg.v1.mk/fy.xml",
-    "http://epg.51zmt.top:8000/e.xml"
+    "http://epg.51zmt.top:8000/e.xml",
+    # ... 保留其他EPG URL
 ]
+
+LOGO_BASE_URL = "https://gitee.com/IIII-9306/PAV/raw/master/logos/"  # 图标基础URL
