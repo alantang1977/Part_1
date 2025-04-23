@@ -62,7 +62,7 @@ source_urls=[
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/kimwang1978/collect-tv-txt/main/merged_output.m3u",
     "https://live.zhoujie218.top/tv/iptv4.txt"
     # 保留原有其他源URL...
-],
+]
 
 url_blacklist = [
     "epg.pw/stream/",
@@ -99,7 +99,7 @@ url_blacklist = [
     "gaoma",
     "[2409:8087:2001:20:2800:0:df6e:eb27]"
   # 保留核心黑名单
-],
+]
 
 announcements = [
     {
@@ -108,7 +108,7 @@ announcements = [
             {"name": "每日自动更新", "url": "https://codeberg.org/alantang/photo/raw/branch/main/ChatGPTImage.png", "logo": "https://codeberg.org/alantang/photo/raw/branch/main/ChatGPTImage.png"}
         ]
     }
-],
+]
 
 epg_urls = [
    "https://epg.v1.mk/fy.xml",
@@ -116,7 +116,7 @@ epg_urls = [
     "https://epg.pw/xmltv/epg_CN.xml",
     "https://epg.pw/xmltv/epg_HK.xml",
     "https://epg.pw/xmltv/epg_TW.xml"
-],
+]
 
 logo_base_url="https://gitee.com/IIII-9306/PAV/raw/master/logos/"
 )
