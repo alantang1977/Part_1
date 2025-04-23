@@ -1,7 +1,20 @@
-"""系统配置文件"""
-ip_version_priority = "auto"  # 保留但不再区分IP版本
+"""系统配置中心"""
+from dataclasses import dataclass
+from typing import List, Dict, Optional
 
-source_urls = [
+@dataclass
+class AppConfig:
+    """核心配置数据类"""
+    ip_version_priority: str = "auto"  # IP版本优先级（auto/ipv4/ipv6）
+    source_urls: List[str] = None       # 数据源URL列表
+    url_blacklist: List[str] = None     # URL黑名单（正则匹配）
+    announcements: List[Dict] = None    # 系统公告配置
+    epg_urls: List[str] = None          # EPG数据源URL
+    logo_base_url: str = ""             # 频道图标基础URL
+    max_workers: int = 20               # 并发线程数
+# 初始化配置（保留原始数据结构，增强类型安全）
+config = AppConfig(
+source_urls=[
     #"http://aktv.space/live.m3u",
     #"http://92.112.21.169:30000/mytv.m3u",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/hostemail/cdn/main/live/tv.txt",
@@ -49,7 +62,7 @@ source_urls = [
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/kimwang1978/collect-tv-txt/main/merged_output.m3u",
     "https://live.zhoujie218.top/tv/iptv4.txt"
     # 保留原有其他源URL...
-]
+],
 
 url_blacklist = [
     "epg.pw/stream/",
@@ -86,7 +99,7 @@ url_blacklist = [
     "gaoma",
     "[2409:8087:2001:20:2800:0:df6e:eb27]"
   # 保留核心黑名单
-]
+],
 
 announcements = [
     {
@@ -95,7 +108,7 @@ announcements = [
             {"name": "每日自动更新", "url": "https://codeberg.org/alantang/photo/raw/branch/main/ChatGPTImage.png", "logo": "https://codeberg.org/alantang/photo/raw/branch/main/ChatGPTImage.png"}
         ]
     }
-]
+],
 
 epg_urls = [
    "https://epg.v1.mk/fy.xml",
@@ -103,6 +116,7 @@ epg_urls = [
     "https://epg.pw/xmltv/epg_CN.xml",
     "https://epg.pw/xmltv/epg_HK.xml",
     "https://epg.pw/xmltv/epg_TW.xml"
-]
+],
 
-LOGO_BASE_URL = "https://gitee.com/IIII-9306/PAV/raw/master/logos/"  # 图标基础URL
+logo_base_url="https://gitee.com/IIII-9306/PAV/raw/master/logos/"
+)
