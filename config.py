@@ -1,7 +1,9 @@
-"""系统配置文件"""
-ip_version_priority = "auto"  # 保留但不再区分IP版本
+"""系统配置中心"""
+from typing import List, Dict
 
-source_urls = [
+# 数据源配置
+SOURCE_CONFIG = {
+    "source_urls": [
     #"http://aktv.space/live.m3u",
     #"http://92.112.21.169:30000/mytv.m3u",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/hostemail/cdn/main/live/tv.txt",
@@ -50,9 +52,8 @@ source_urls = [
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/kimwang1978/collect-tv-txt/main/merged_output.m3u",
     "https://live.zhoujie218.top/tv/iptv4.txt"
     # 保留原有其他源URL...
-]
-
-url_blacklist = [
+    ], 
+    "url_blacklist": [
     "epg.pw/stream/",
     "103.40.13.71:12390",
     "[2409:8087:1a01:df::4077]/PLTV/",
@@ -86,24 +87,35 @@ url_blacklist = [
     "chinamobile",
     "gaoma",
     "[2409:8087:2001:20:2800:0:df6e:eb27]"
-  # 保留核心黑名单
-]
-
-announcements = [
-    {
-        "channel": "系统公告",
-        "entries": [
-            {"name": "每日自动更新", "url": "https://codeberg.org/alantang/photo/raw/branch/main/ChatGPTImage.png", "logo": "https://codeberg.org/alantang/photo/raw/branch/main/ChatGPTImage.png"}
-        ]
-    }
-]
-
-epg_urls = [
-   "https://epg.v1.mk/fy.xml",
+    ],  # URL黑名单（支持子串匹配）
+    "epg_urls": [
+    "https://epg.v1.mk/fy.xml",
     "http://epg.51zmt.top:8000/e.xml",
     "https://epg.pw/xmltv/epg_CN.xml",
     "https://epg.pw/xmltv/epg_HK.xml",
     "https://epg.pw/xmltv/epg_TW.xml"
-]
+    ]  # EPG数据源URL
+}
 
-LOGO_BASE_URL = "https://gitee.com/IIII-9306/PAV/raw/master/logos/"  # 图标基础URL
+# 输出配置
+OUTPUT_CONFIG = {
+    "output_dir": "output",  # 输出目录
+    "logo_base_url": "https://gitee.com/IIII-9306/PAV/raw/master/logos/",  # 频道图标基础URL
+    "file_formats": ["m3u", "txt"]  # 支持的输出格式
+}
+
+# 网络配置
+NETWORK_CONFIG = {
+    "timeout": 10,  # 请求超时时间（秒）
+    "max_workers": 20  # 并发检测线程数
+}
+
+# 系统公告
+SYSTEM_ANNOUNCEMENTS = [
+    {
+        "channel": "系统通知",
+        "entries": [
+            {"name": "每日更新", "url": "https://codeberg.org/alantang/photo/raw/branch/main/ChatGPTImage.png"}
+        ]
+    }
+]
