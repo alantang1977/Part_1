@@ -7,6 +7,7 @@ from collections import OrderedDict
 from config import SOURCE_CONFIG, OUTPUT_CONFIG, NETWORK_CONFIG, SYSTEM_ANNOUNCEMENTS
 from utils.parser import Parser
 from concurrent.futures import ThreadPoolExecutor
+import os  # 新增导入os模块
 
 # 日志配置
 logging.basicConfig(
@@ -74,7 +75,7 @@ class ChannelManager:
 
     def generate_output_files(self):
         """生成输出文件（M3U/TXT）"""
-        os.makedirs(OUTPUT_CONFIG["output_dir"], exist_ok=True)
+        os.makedirs(OUTPUT_CONFIG["output_dir"], exist_ok=True)  # 使用os模块创建目录
         with open(f"{OUTPUT_CONFIG['output_dir']}/live.m3u", "w", encoding="utf-8") as m3u, \
              open(f"{OUTPUT_CONFIG['output_dir']}/live.txt", "w", encoding="utf-8") as txt:
             self._write_announcements(m3u, txt)
