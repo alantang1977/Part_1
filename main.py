@@ -8,9 +8,9 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
 from utils.parser import parse_template, parse_source_content
-
-# 日志配置（使用RotatingFileHandler防止日志过大）
 from logging.handlers import RotatingFileHandler
+
+# 日志配置
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
@@ -28,20 +28,18 @@ logger.addHandler(console_handler)
 class ChannelManager:
     def __init__(self, template_path):
         self.template_path = template_path
-        self.template_channels = parse_template(template_path)
-        self.all_channels = OrderedDict()
-        self.session = self._create_session()
+        self.template_channels = parse_template(template_path)  # 解析模板
+        self.all_channels = OrderedDict()  # 存储合并后的频道
+        self.session = self._create_session()  # 创建带连接池的会话
 
     def _create_session(self):
-        """创建带连接池和重试策略的会话"""
+        """初始化带重试策略的会话"""
         session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
             pool_connections=100,
             pool_maxsize=100,
-            max_retries=Retry(
-                total=3,
-                backoff_factor=1,
-                status_forcelist=[429, 500, 502, 503, 504]
+            max_retries=requests.packages.urllib3.util.retry.Retry(
+                total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504]
             )
         )
         session.mount("http://", adapter)
@@ -49,62 +47,70 @@ class ChannelManager:
         return session
 
     def fetch_and_merge_channels(self):
-        """抓取并合并所有数据源频道（带并发控制和超时）"""
+        """并发抓取并合并所有数据源"""
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [executor.submit(self._process_source, url) for url in config.source_urls]
+            futures = [executor.submit(self._process_source, url) for url in config.SOURCE_URLS]
             for future in futures:
                 try:
-                    merged = future.result(timeout=60)  # 单个数据源处理超时60秒
-                    self._merge_channels(merged)
+                    channels = future.result(timeout=60)  # 单个数据源处理超时60秒
+                    self._merge_channels(channels)
                 except Exception as e:
-                    logger.error(f"数据源处理失败: {str(e)}")
+                    logger.error(f"数据源处理失败: {str(e)}", exc_info=False)
 
     def _process_source(self, url):
-        """处理单个数据源（包含格式检测和解析）"""
+        """处理单个数据源（包含网络请求和格式解析）"""
         try:
             content = self._fetch_url_content(url)
             source_type = self._detect_source_type(content)
             return parse_source_content(content, source_type)
         except Exception as e:
-            logger.warning(f"跳过无效数据源 {url}: {str(e)}")
-            return {}
+            logger.warning(f"跳过无效数据源 {url}: {str(e)}", exc_info=False)
+            return OrderedDict()
 
     def _fetch_url_content(self, url):
-        """安全获取URL内容（带会话重用和超时）"""
+        """安全获取URL内容（带超时和异常处理）"""
         response = self.session.get(url, timeout=config.NETWORK_CONFIG["timeout"])
         response.raise_for_status()
         return response.text
 
     def _detect_source_type(self, content):
-        """智能检测数据源类型（支持M3U/TXT）"""
+        """自动检测数据源格式（M3U/TXT）"""
         return "m3u" if any(line.startswith("#EXTINF") for line in content.splitlines()[:15]) else "txt"
 
     def _merge_channels(self, source_channels):
-        """去重合并频道数据（保留顺序）"""
+        """去重合并频道（保留顺序，过滤无效URL）"""
         for name, urls in source_channels.items():
             cleaned_name = self._clean_channel_name(name)
-            self.all_channels[cleaned_name] = list({
-                u for u in self.all_channels.get(cleaned_name, []) + urls
-                if not self._is_blacklisted(u) and self._has_valid_ip(u)
-            })
+            valid_urls = [
+                url for url in urls
+                if not self._is_blacklisted(url) and self._has_valid_ip(url)
+            ]
+            if cleaned_name in self.all_channels:
+                self.all_channels[cleaned_name] = list(OrderedDict.fromkeys(
+                    self.all_channels[cleaned_name] + valid_urls
+                ))
+            else:
+                self.all_channels[cleaned_name] = valid_urls
 
     def _clean_channel_name(self, name):
-        """标准化频道名称（去除干扰字符）"""
+        """标准化频道名称（去除特殊字符）"""
         return re.sub(r'[^\w\s-]', '', name).strip().upper()
 
     def _is_blacklisted(self, url):
-        """增强版黑名单检测（支持正则匹配）"""
+        """正则表达式黑名单检测"""
         return any(re.search(bl, url, re.IGNORECASE) for bl in config.URL_BLACKLIST)
 
     def _has_valid_ip(self, url):
         """检测有效IP地址（支持IPv4/IPv6）"""
-        return re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b|\[([0-9a-fA-F:]+)\]', url) is not None
+        ipv4_pattern = r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
+        ipv6_pattern = r'\[?[0-9a-fA-F:]+\]?'
+        return re.search(f"{ipv4_pattern}|{ipv6_pattern}", url) is not None
 
     def sort_channels_by_speed(self):
         """按响应速度排序（动态线程池+超时控制）"""
         sorted_channels = OrderedDict()
-        max_workers = multiprocessing.cpu_count() * 2 + 1
-        
+        max_workers = multiprocessing.cpu_count() * 2 + 1  # 动态计算线程数
+
         for name, urls in self.all_channels.items():
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = [executor.submit(self._check_response_time, url) for url in urls]
@@ -114,9 +120,12 @@ class ChannelManager:
                         results.append(future.result(timeout=10))  # 单个URL检测超时10秒
                     except Exception:
                         results.append((url, float('inf')))
-                
-                # 按响应时间升序排序，忽略失败的URL
-                sorted_urls = [url for url, time in sorted(results, key=lambda x: x[1]) if time != float('inf')]
+
+                # 按响应时间升序排序，过滤无效URL
+                sorted_urls = [
+                    url for url, time in sorted(results, key=lambda x: x[1])
+                    if time != float('inf')
+                ]
                 sorted_channels[name] = sorted_urls
         return sorted_channels
 
@@ -130,33 +139,37 @@ class ChannelManager:
             return (url, float('inf'))
 
     def generate_output_files(self):
-        """生成输出文件（支持分块写入和资源监控）"""
+        """生成输出文件（M3U/TXT）"""
         os.makedirs(config.OUTPUT_CONFIG["output_dir"], exist_ok=True)
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
+
         with open(
-            f"{config.OUTPUT_CONFIG['output_dir']}/live.m3u", "w", encoding="utf-8"
+            f"{config.OUTPUT_CONFIG['output_dir']}/{config.OUTPUT_CONFIG['m3u_filename']}",
+            "w", encoding="utf-8"
         ) as m3u, open(
-            f"{config.OUTPUT_CONFIG['output_dir']}/live.txt", "w", encoding="utf-8"
+            f"{config.OUTPUT_CONFIG['output_dir']}/{config.OUTPUT_CONFIG['txt_filename']}",
+            "w", encoding="utf-8"
         ) as txt:
-            
+
             self._write_header(m3u, current_time)
             self._write_announcements(m3u, txt)
             self._write_channel_data(m3u, txt)
 
     def _write_header(self, m3u, current_time):
-        """写入文件头部信息（含EPG链接）"""
-        epg_links = ',"'.join(config.epg_urls)
-        m3u.write(f'#EXTM3U x-tvg-url="http://epg.51zmt.top:8000/e.xml","{epg_links}"\n')
+        """写入M3U文件头部（含EPG信息）"""
+        m3u.write(f'#EXTM3U x-tvg-url="{"|".join(config.EPG_URLS)}"\n')
         m3u.write(f'#GENERATOR SuperA/{datetime.now().year}\n')
         m3u.write(f'#LASTUPDATE {current_time}\n\n')
 
     def _write_announcements(self, m3u, txt):
-        """写入系统公告（带LOGO和分组）"""
-        for group in config.announcements:
+        """写入系统公告频道"""
+        for group in config.ANNOUNCEMENTS:
             txt.write(f"{group['channel']},#genre#\n")
             for idx, entry in enumerate(group['entries'], 1):
-                m3u.write(f'#EXTINF:-1,tvg-id="{idx}",tvg-name="{entry["name"]}",tvg-logo="{entry["logo"]}",group-title="{group["channel"]}"\n')
+                m3u.write(
+                    f'#EXTINF:-1,tvg-id="{idx}",tvg-name="{entry["name"]}",'
+                    f'tvg-logo="{entry["logo"]}",group-title="{group["channel"]}"\n'
+                )
                 m3u.write(f"{entry['url']}\n")
                 txt.write(f"{entry['name']},{entry['url']}\n")
 
@@ -164,24 +177,25 @@ class ChannelManager:
         """分块写入频道数据（防止内存过载）"""
         sorted_channels = self.sort_channels_by_speed()
         chunk_size = 100  # 每批处理100个频道
-        
+
         for category in self.template_channels:
             txt.write(f"{category},#genre#\n")
-            for i in range(0, len(self.template_channels[category]), chunk_size):
-                chunk = self.template_channels[category][i:i+chunk_size]
+            channels_in_category = self.template_channels[category]
+            for i in range(0, len(channels_in_category), chunk_size):
+                chunk = channels_in_category[i:i+chunk_size]
                 self._process_chunk(category, chunk, m3u, txt, sorted_channels)
 
     def _process_chunk(self, category, channel_names, m3u, txt, sorted_channels):
-        """处理频道块（包含URL去重和排序）"""
+        """处理频道块（去重+排序+写入）"""
         written_urls = set()
         for channel_name in channel_names:
             cleaned_name = self._clean_channel_name(channel_name)
             urls = sorted_channels.get(cleaned_name, [])
-            
+
             # 去重并按速度排序
-            unique_urls = list({u for u in urls if u and not self._is_blacklisted(u)})
+            unique_urls = list(OrderedDict.fromkeys(urls))
             sorted_urls = self._sort_by_speed(unique_urls)
-            
+
             for idx, url in enumerate(sorted_urls, 1):
                 if url in written_urls:
                     continue
@@ -190,21 +204,19 @@ class ChannelManager:
 
     def _sort_by_speed(self, urls):
         """带缓存的速度排序（避免重复检测）"""
-        if not urls:
-            return []
         with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()*2) as executor:
             results = list(executor.map(self._check_response_time, urls))
         return [url for url, time in sorted(results, key=lambda x: x[1]) if time != float('inf')]
 
     def _write_channel_entry(self, m3u, txt, category, name, idx, url):
-        """标准化条目写入（带LOGO和元数据）"""
+        """标准化频道条目写入（带LOGO和元数据）"""
         logo = f"{config.LOGO_BASE_URL}{name}.png"
         m3u_line = (
-            f'#EXTINF:-1,tvg-id="{idx}",tvg-name="{name}",tvg-logo="{logo}",group-title="{category}"\n'
-            f"{url}\n"
+            f'#EXTINF:-1,tvg-id="{idx}",tvg-name="{name}",tvg-logo="{logo}",'
+            f'group-title="{category}"\n{url}\n'
         )
         txt_line = f"{name},{url}\n"
-        
+
         m3u.write(m3u_line)
         txt.write(txt_line)
         # 实时刷新缓冲区防止内存堆积
