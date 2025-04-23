@@ -2,60 +2,44 @@ name: Daily Update
 
 on:
   schedule:
-    - cron: '55 0 */2 * *'  # 每2天凌晨00点55分执行任务（上海时区对应的UTC时间）
+    - cron: '0 0 * * *'  # 每天凌晨0点执行（UTC时间，需根据时区调整）
   workflow_dispatch:
     branches:
       - main
 
 jobs:
-  run_script:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-    - name: Cache dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
 
-    - name: Install dependencies
-      run: pip install requests
+      - name: Install dependencies
+        run: pip install requests
 
-    - name: Run main script
-      run: python main.py  # 生成output目录下的live.m3u和live.txt
+      - name: Run main script
+        run: python main.py
 
-    - name: Download EPG File
-      run: |
-        wget -q http://epg.51zmt.top:8000/e.xml -O output/epg.xml
-        wget -q https://epg.v1.mk/fy.xml -O output/fy.xml
-      # 下载多个EPG文件并统一存放至output目录（按需扩展）
+      - name: Upload EPG files
+        run: |
+          wget -q https://epg.example.com/xmltv.xml -O output/epg.xml
+          wget -q https://epg.example.com/fy.xml -O output/fy.xml
 
-    - name: Configure Git user
-      run: |
-        git config user.name "GitHub Actions"
-        git config user.email "actions@github.com"
-
-    - name: Add changed files
-      run: git add output/live.m3u output/live.txt output/*.xml
-
-    - name: Commit and push if changes exist
-      run: |
-        if [ -n "$(git diff --staged --exit-code)" ]; then
-          git commit -m "Update: Live streams and EPG files"
+      - name: Commit changes
+        run: |
+          git config user.name "Bot"
+          git config user.email "bot@example.com"
+          git add output/
+          git commit -m "Update: Channel list and EPG files" || true
           git push
-        else
-          echo "No changes to commit"
-        fi
-    env:
-      TZ: Asia/Shanghai  # 设置上海时区
-      LANG: en_US.UTF-8
