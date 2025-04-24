@@ -3,6 +3,7 @@ ip_version_priority = "auto"  # 保留但不再区分IP版本
 
 source_urls = [
     #"http://aktv.space/live.m3u",
+    "https://cdn.jsdelivr.net/gh/iptv-org/iptv@master/streams/cn.m3u",
     "http://8.130.90.107:18092/",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/hostemail/cdn/main/live/tv.txt",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/alantang1977/JunTV/refs/heads/main/output/result.m3u",
@@ -99,6 +100,7 @@ announcements = [
 
 epg_urls = [
     "https://epg.v1.mk/fy.xml",
+    "https://epg.112114.xyz/pp.xml",
     "http://epg.51zmt.top:8000/e.xml",
     "https://epg.pw/xmltv/epg_CN.xml",
     "https://epg.pw/xmltv/epg_HK.xml",
