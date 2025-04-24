@@ -46,19 +46,19 @@ jobs:
         git config user.email "actions@github.com"
 
     - name: Pull latest changes from remote
-      run: git pull origin main --allow-unrelated-histories  # 新增拉取远程分支步骤
+      run: git pull origin main --allow-unrelated-histories  # 拉取远程分支并允许无关历史
 
     - name: Add changed files
-      run: git add output/live.m3u output/live.txt output/*.xml
+      run: git add output/live.m3u output/live.txt output/*.xml  # 添加生成的文件
 
     - name: Commit and push if changes exist
       run: |
         if [ -n "$(git diff --staged --exit-code)" ]; then
-          git commit -m "Update: Live streams and EPG files"
-          git push --ff-only  # 确保快进式推送，避免非快进冲突
+          git commit -m "Update: Live streams and EPG files"  # 提交变更
+          git push origin main --ff-only  # 明确指定远程仓库和分支，确保快进式推送
         else
-          echo "No changes to commit"
+          echo "No changes to commit"  # 无变更时提示
         fi
     env:
       TZ: Asia/Shanghai  # 设置上海时区
-      LANG: en_US.UTF-8
+      LANG: en_US.UTF-8  # 设置语言环境
