@@ -2,8 +2,6 @@
 ip_version_priority = "auto"  # 保留但不再区分IP版本
 
 source_urls = [
-    #"http://aktv.space/live.m3u",
-
     "https://cnb.cool/junchao.tang/llive/-/git/raw/main/小云TV直播",
     "https://web.banye.tech:7777/tvbus/yogurtTv.txt",
     "http://1.94.31.214/live/livelite.txt",
@@ -57,7 +55,6 @@ source_urls = [
     "https://live.zhoujie218.top/tv/iptv4.txt"
     # 保留原有其他源URL...
 ]
-
 url_blacklist = [
     "epg.pw/stream/",
     "103.40.13.71:12390",
@@ -94,7 +91,6 @@ url_blacklist = [
     "[2409:8087:2001:20:2800:0:df6e:eb27]"
   # 保留核心黑名单
 ]
-
 announcements = [
     {
         "channel": "系统公告",
