@@ -91,6 +91,10 @@ CETV5
 🦄️┃港·澳·台┃🔢,#genre#
 翡翠台
 TVB翡翠台
+凤凰中文
+凤凰资讯
+凤凰卫视
+凤凰香港
 翡翠综合台(北美)
 明珠台
 Pearl 明珠台
@@ -122,7 +126,6 @@ Animax
 HOYTV
 TVB Plus
 myTV SUPER FREE
-tvN
 MBC 대전
 Hoy 78
 天映频道粤
