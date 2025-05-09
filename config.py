@@ -3,6 +3,12 @@ ip_version_priority = "auto"  # 保留但不再区分IP版本
 
 source_urls = [
     #"http://aktv.space/live.m3u",
+
+    "https://cnb.cool/junchao.tang/llive/-/git/raw/main/小云TV直播",
+    "https://web.banye.tech:7777/tvbus/yogurtTv.txt",
+    "http://1.94.31.214/live/livelite.txt",
+    "http://xn--elt51t.azip.dpdns.org:5008/?type=txt",
+    "http://211.154.28.50:5898/2025.txt",
     "https://cdn.jsdelivr.net/gh/iptv-org/iptv@master/streams/cn.m3u",
     "http://8.130.90.107:18092/",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/hostemail/cdn/main/live/tv.txt",
