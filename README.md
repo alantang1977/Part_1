@@ -1,4 +1,30 @@
-# 该仓库 SuperA 是一个用于整理和生成网络直播频道列表的项目，主要包含频道数据解析、匹配及自动化更新功能。以下是仓库的详细介绍：
+<div align="center">
+  <img src="./static/images/logo.png" alt="logo"/>
+  <h1 align="center">SuperA</h1>
+</div>
+
+<div align="center">该仓库 SuperA 是一个用于整理和生成网络直播频道列表的项目，主要包含频道数据解析、匹配及自动化更新功能。</div>
+<br>
+<p align="center">
+  <a href="https://github.com/alantang1977/SuperA/releases">
+    <img src="https://img.shields.io/github/v/release/alantang1977/SuperA" />
+  </a>
+  <a href="https://www.python.org/">
+    <img src="https://img.shields.io/badge/python-%20%3D%203.13-47c219" />
+  </a>
+  <a href="https://github.com/alantang1977/SuperA/releases">
+    <img src="https://img.shields.io/github/downloads/alantang1977/SuperA/total" />
+  </a>
+  <a href="https://github.com/alantang1977/SuperA">
+    <img src="https://img.shields.io/github/stars/alantang1977/SuperA" />
+  </a>
+  <a href="https://github.com/alantang1977/SuperA/fork">
+    <img src="https://img.shields.io/github/forks/alantang1977/SuperA" />
+  </a>
+</p>
+
+
+# 以下是仓库的详细介绍：
 ## 核心功能
 频道数据管理 
 
