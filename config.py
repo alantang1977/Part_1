@@ -2,7 +2,6 @@
 ip_version_priority = "auto"  # 保留但不再区分IP版本
 
 source_urls = [
-    "https://cnb.cool/junchao.tang/llive/-/git/raw/main/小云TV直播",
     "https://web.banye.tech:7777/tvbus/yogurtTv.txt",
     "http://1.94.31.214/live/livelite.txt",
     "http://xn--elt51t.azip.dpdns.org:5008/?type=txt",
@@ -43,9 +42,7 @@ source_urls = [
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/xzw832/cmys/main/S_CCTV.txt",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/xzw832/cmys/main/S_weishi.txt",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/BurningC4/Chinese-IPTV/master/TV-IPV4.m3u",
-    "https://gh.tryxd.cn/https://raw.githubusercontent.com/joevess/IPTV/main/m3u/iptv.m3u",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/Ftindy/IPTV-URL/main/IPV6.m3u",
-    "https://gh.tryxd.cn/https://raw.githubusercontent.com/YanG-1989/m3u/main/Gather.m3u",
     "https://iptv.b2og.com/txt/fmml_ipv6.txt",
     "http://xhztv.top/zbc.txt",
     "https://gh.tryxd.cn/https://raw.githubusercontent.com/kimwang1978/collect-tv-txt/main/merged_output_simple.txt",
