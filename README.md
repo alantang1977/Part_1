@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./static/images/logo.png" alt="logo"/>
+  <img src="https://raw.githubusercontent.com/alantang1977/X/main/Pictures/TangImage240.png" alt="logo"/>
   <h1 align="center">SuperA</h1>
 </div>
 
