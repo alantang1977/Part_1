@@ -92,7 +92,7 @@ announcements = [
     {
         "channel": "系统公告",
         "entries": [
-            {"name": "每日自动更新", "url": "https://raw.githubusercontent.com/alantang1977/X/main/Pictures/Robot.mp4", "logo": "https://raw.githubusercontent.com/alantang1977/X/main/Pictures/TangImage320.png"}
+            {"name": "每日自动更新", "url": "https://gh.tryxd.cn/https://raw.githubusercontent.com/alantang1977/X/main/Pictures/Robot.mp4", "logo": "https://gh.tryxd.cn/https://raw.githubusercontent.com/alantang1977/X/main/Pictures/TangImage320.png"}
         ]
     }
 ]
