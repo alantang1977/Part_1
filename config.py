@@ -106,4 +106,4 @@ epg_urls = [
     "https://epg.pw/xmltv/epg_TW.xml"
 ]
 
-LOGO_BASE_URL = "https://gitee.com/IIII-9306/PAV/raw/master/logos/"  # 图标基础URL
+LOGO_BASE_URL = "https://github.com/vbskycn/iptv/tree/master/logo"  # 图标基础URL
