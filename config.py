@@ -2,6 +2,7 @@
 ip_version_priority = "auto"  # 保留但不再区分IP版本
 
 source_urls = [
+    "http://gg.7749.org/z/i/gdss.txt",
     "https://web.banye.tech:7777/tvbus/yogurtTv.txt",
     "http://1.94.31.214/live/livelite.txt",
     "http://xn--elt51t.azip.dpdns.org:5008/?type=txt",
