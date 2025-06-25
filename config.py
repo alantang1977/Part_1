@@ -2,6 +2,7 @@
 ip_version_priority = "auto"  # 保留但不再区分IP版本
 
 source_urls = [
+    "https://nptv.freetv.top/juhe.m3u",
     "http://gg.7749.org/z/i/gdss.txt",
     "https://web.banye.tech:7777/tvbus/yogurtTv.txt",
     "http://1.94.31.214/live/livelite.txt",
