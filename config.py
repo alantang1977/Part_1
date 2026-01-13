@@ -94,7 +94,7 @@ announcements = [
     {
         "channel": "系统公告",
         "entries": [
-            {"name": "每日自动更新", "url": "https://codeberg.org/alantang/photo/raw/branch/main/Robot.mp4", "logo": "https://codeberg.org/alantang/photo/raw/branch/main/SuperMAN.png"}
+            {"name": "每日自动更新", "url": "https://cnb.cool/junchao.tang/jtv/-/git/raw/main/Pictures/Robot.mp4","logo": "https://cnb.cool/junchao.tang/jtv/-/git/raw/main/Pictures/Chao.png"}
         ]
     }
 ]
